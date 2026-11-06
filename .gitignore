@@ -4,4 +4,4 @@ dist
 *.log
 orders.db
 orders.db-*
-.pdf
+*.pdf
