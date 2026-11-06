@@ -1,7 +1,7 @@
 import path from 'path';
-import { DatabaseSync } from 'node:sqlite';
+import Database from 'better-sqlite3';
 
-export const db = new DatabaseSync(path.join(process.cwd(), 'orders.db'));
+export const db = new Database(path.join(process.cwd(), 'orders.db'));
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS orders (
