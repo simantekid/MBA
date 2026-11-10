@@ -31,6 +31,8 @@ export const createOrder: RequestHandler = async (req, res, next) => {
         status: existing.status,
         sn: existing.sn,
         msg: existing.msg,
+        price: existing.price,
+        balance: existing.balance,
       } satisfies IrsOrderResponse);
       return;
     }
@@ -46,6 +48,8 @@ export const createOrder: RequestHandler = async (req, res, next) => {
     const vendorIdtrx = result.TransID || null;
     const sn = result.SerialNo || null;
     const msg = result.FullResponse || `response code ${result.ResponseCode}`;
+    const price = result.ProductPrice || null;
+    const balance = result.Balance || null;
 
     saveOrder({
       idtrx: payload.idtrx,
@@ -55,6 +59,8 @@ export const createOrder: RequestHandler = async (req, res, next) => {
       status,
       sn,
       msg,
+      price,
+      balance,
     });
 
     const response: IrsOrderResponse = {
@@ -65,6 +71,8 @@ export const createOrder: RequestHandler = async (req, res, next) => {
       status,
       sn,
       msg,
+      price,
+      balance,
     };
 
     res.json(response);
@@ -100,6 +108,8 @@ export const getOrderStatus: RequestHandler = async (req, res, next) => {
         status: order.status,
         sn: order.sn,
         msg: order.msg,
+        price: order.price,
+        balance: order.balance,
       } satisfies IrsOrderResponse);
       return;
     }
@@ -109,6 +119,8 @@ export const getOrderStatus: RequestHandler = async (req, res, next) => {
     const vendorIdtrx = result.TransID || order.vendor_idtrx;
     const sn = result.SerialNo || order.sn;
     const msg = result.FullResponse || order.msg;
+    const price = result.ProductPrice || order.price;
+    const balance = result.Balance || order.balance;
 
     saveOrder({
       idtrx: order.idtrx,
@@ -118,6 +130,8 @@ export const getOrderStatus: RequestHandler = async (req, res, next) => {
       status,
       sn,
       msg,
+      price,
+      balance,
     });
 
     const response: IrsOrderResponse = {
@@ -128,6 +142,8 @@ export const getOrderStatus: RequestHandler = async (req, res, next) => {
       status,
       sn,
       msg,
+      price,
+      balance,
     };
 
     res.json(response);

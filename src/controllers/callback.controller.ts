@@ -37,6 +37,8 @@ export const handleOrderCallback: RequestHandler = (req, res) => {
   const vendorIdtrx = payload.TransID || order.vendor_idtrx;
   const sn = payload.SerialNo || order.sn;
   const msg = payload.FullResponse || order.msg;
+  const price = payload.ProductPrice || order.price;
+  const balance = payload.Balance || order.balance;
 
   saveOrder({
     idtrx: order.idtrx,
@@ -46,6 +48,8 @@ export const handleOrderCallback: RequestHandler = (req, res) => {
     status,
     sn,
     msg,
+    price,
+    balance,
   });
 
   console.log('[order callback]', payload.TransID, payload.CRefId, payload.ResponseCode, '-> saved as', status);
@@ -61,6 +65,8 @@ export const handleOrderCallback: RequestHandler = (req, res) => {
     status,
     sn,
     msg,
+    price,
+    balance,
   });
 };
 

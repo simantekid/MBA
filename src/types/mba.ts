@@ -17,6 +17,9 @@ export interface IrsOrderResponse {
   status: IrsStatus;
   sn: string | null;
   msg: string;
+  // Diteruskan apa adanya dari MBA (ProductPrice / Balance). null = MBA balikin kosong.
+  price: string | null;
+  balance: string | null;
 }
 
 export interface OrderRecord {
@@ -27,6 +30,8 @@ export interface OrderRecord {
   status: IrsStatus;
   sn: string | null;
   msg: string;
+  price: string | null;
+  balance: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -12,7 +12,17 @@ db.exec(`
     status TEXT NOT NULL,
     sn TEXT,
     msg TEXT,
+    price TEXT,
+    balance TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
+
+// orders.db lama (sebelum ada price/balance) -> tambah kolom kalau belum ada.
+const existingColumns = (db.prepare('PRAGMA table_info(orders)').all() as { name: string }[]).map((c) => c.name);
+for (const col of ['price', 'balance']) {
+  if (!existingColumns.includes(col)) {
+    db.exec(`ALTER TABLE orders ADD COLUMN ${col} TEXT`);
+  }
+}
