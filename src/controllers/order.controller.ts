@@ -1,8 +1,15 @@
 import { RequestHandler } from 'express';
 import * as mbaService from '../services/mba.service';
-import { findOrderByIdtrx, saveOrder } from '../services/orderStore.service';
+import axios from 'axios';
+import { findOrderByIdtrx, saveOrder, startPendingOrder } from '../services/orderStore.service';
 import { mapMbaResponseCodeToIrsStatus } from '../lib/statusMapper';
 import { IrsOrderRequest, IrsOrderResponse } from '../types/mba';
+
+const NOT_SENT_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH']);
+
+function isNotSentError(err: unknown): boolean {
+  return axios.isAxiosError(err) && !err.response && !!err.code && NOT_SENT_CODES.has(err.code);
+}
 
 export const createOrder: RequestHandler = async (req, res, next) => {
   try {
@@ -37,42 +44,63 @@ export const createOrder: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    // CRefId = idtrx kita sendiri; MBA balikin ini lagi di callback buat dicocokin ke orders.db.
-    const result = await mbaService.topupRequest({
-      msisdn: payload.tujuan,
-      productCode: payload.kode,
-      crefId: payload.idtrx,
-    });
+    // Simpan dulu sebagai pending SEBELUM request ke MBA: callback MBA bisa masuk lebih cepat
+    // dari jawaban TopupRequest, dan kalau ordernya belum ada di db callback-nya kebuang.
+    startPendingOrder({ idtrx: payload.idtrx, kode: payload.kode, tujuan: payload.tujuan });
 
-    const status = mapMbaResponseCodeToIrsStatus(result.ResponseCode);
-    const vendorIdtrx = result.TransID || null;
-    const sn = result.SerialNo || null;
-    const msg = result.FullResponse || `response code ${result.ResponseCode}`;
-    const price = result.ProductPrice || null;
-    const balance = result.Balance || null;
+    // CRefId = idtrx kita sendiri; MBA balikin ini lagi di callback buat dicocokin ke orders.db.
+    let result;
+    try {
+      result = await mbaService.topupRequest({
+        msisdn: payload.tujuan,
+        productCode: payload.kode,
+        crefId: payload.idtrx,
+      });
+    } catch (err) {
+      // Request jelas belum nyampe ke MBA -> tandai gagal biar retry IRS dengan idtrx sama bisa lolos.
+      // Timeout / error setelah terkirim itu ambigu (mungkin MBA sudah proses) -> biarin pending,
+      // nanti diselesaikan callback atau polling /order_status.
+      if (isNotSentError(err)) {
+        saveOrder({
+          idtrx: payload.idtrx,
+          vendorIdtrx: null,
+          kode: payload.kode,
+          tujuan: payload.tujuan,
+          status: 'gagal',
+          sn: null,
+          msg: 'MBA unreachable, request not sent',
+          price: null,
+          balance: null,
+        });
+      }
+      throw err;
+    }
 
     saveOrder({
       idtrx: payload.idtrx,
-      vendorIdtrx,
+      vendorIdtrx: result.TransID || null,
       kode: payload.kode,
       tujuan: payload.tujuan,
-      status,
-      sn,
-      msg,
-      price,
-      balance,
+      status: mapMbaResponseCodeToIrsStatus(result.ResponseCode),
+      sn: result.SerialNo || null,
+      msg: result.FullResponse || `response code ${result.ResponseCode}`,
+      price: result.ProductPrice || null,
+      balance: result.Balance || null,
     });
 
+    // Jawab dari kondisi db sekarang, bukan dari jawaban sync: kalau callback sukses sudah
+    // keburu masuk, IRS jangan dikasih pending lagi.
+    const current = findOrderByIdtrx(payload.idtrx)!;
     const response: IrsOrderResponse = {
-      idtrx: payload.idtrx,
-      tujuan: payload.tujuan,
-      kode: payload.kode,
-      vendor_idtrx: vendorIdtrx,
-      status,
-      sn,
-      msg,
-      price,
-      balance,
+      idtrx: current.idtrx,
+      tujuan: current.tujuan,
+      kode: current.kode,
+      vendor_idtrx: current.vendor_idtrx,
+      status: current.status,
+      sn: current.sn,
+      msg: current.msg,
+      price: current.price,
+      balance: current.balance,
     };
 
     res.json(response);

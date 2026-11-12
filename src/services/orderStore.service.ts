@@ -12,10 +12,34 @@ const upsertStmt = db.prepare(`
     price = COALESCE(excluded.price, price),
     balance = COALESCE(excluded.balance, balance),
     updated_at = datetime('now')
+  WHERE NOT (orders.status IN ('sukses', 'gagal') AND excluded.status = 'pending')
+`);
+
+// Reset eksplisit ke pending buat order baru / retry order 'gagal'. Sengaja tanpa guard di atas.
+const startPendingStmt = db.prepare(`
+  INSERT INTO orders (idtrx, vendor_idtrx, kode, tujuan, status, sn, msg, price, balance)
+  VALUES (@idtrx, NULL, @kode, @tujuan, 'pending', NULL, 'ORDER RECEIVED', NULL, NULL)
+  ON CONFLICT(idtrx) DO UPDATE SET
+    vendor_idtrx = NULL,
+    kode = excluded.kode,
+    tujuan = excluded.tujuan,
+    status = 'pending',
+    sn = NULL,
+    msg = excluded.msg,
+    price = NULL,
+    balance = NULL,
+    updated_at = datetime('now')
 `);
 
 const findByIdtrxStmt = db.prepare('SELECT * FROM orders WHERE idtrx = ?');
 
+// Dipanggil SEBELUM request ke MBA, biar callback yang datang lebih cepat dari jawaban
+// TopupRequest tetap nemu ordernya.
+export function startPendingOrder(record: { idtrx: string; kode: string; tujuan: string }) {
+  startPendingStmt.run({ idtrx: record.idtrx, kode: record.kode, tujuan: record.tujuan });
+}
+
+// Status final (sukses/gagal) tidak pernah diturunkan jadi pending oleh jawaban yang telat.
 export function saveOrder(record: {
   idtrx: string;
   vendorIdtrx: string | null;
